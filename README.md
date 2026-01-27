@@ -1,5 +1,7 @@
 # MannoCopy
 
+![MannoCopy Screenshot](screenshot-main.png)
+
 A small macOS app that helps you run safe `rsync` synchronizations with a clear workflow:
 **Plan (dry-run) → Confirm → Sync**, plus live progress, logs, and a Stop button.
 
@@ -25,6 +27,11 @@ A small macOS app that helps you run safe `rsync` synchronizations with a clear 
 - `rsync` available on the system  
   - Uses system `rsync` or Homebrew `rsync` if installed
 
+## System Requirements
+
+- macOS **Sequoia (15.0)** or later
+- Xcode **16** or later (for building from source)
+- `rsync` available on the system
 ---
 
 ## How it works (high level)
@@ -40,6 +47,7 @@ A small macOS app that helps you run safe `rsync` synchronizations with a clear 
 This tool can copy / overwrite files depending on your settings and `rsync` behavior.
 Always double-check your source/target folders and keep backups.
 
+> Note: The user interface is currently available in **German only**.
 ---
 
 ## License

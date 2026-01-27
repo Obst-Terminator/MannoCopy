@@ -25,6 +25,11 @@ Eine kleine macOS-App, die `rsync`-Synchronisationen mit einem klaren Ablauf sic
 - `rsync` auf dem System  
   - Nutzt system-`rsync` oder Homebrew-`rsync` falls installiert
 
+## Systemvoraussetzungen
+
+- macOS **Sequoia (15.0)** oder neuer
+- Xcode **16** oder neuer (zum Bauen aus dem Quellcode)
+- `rsync` auf dem System verfügbar
 ---
 
 ## Ablauf (kurz)
@@ -40,6 +45,7 @@ Eine kleine macOS-App, die `rsync`-Synchronisationen mit einem klaren Ablauf sic
 Dieses Tool kann — abhängig von Einstellungen und `rsync`-Verhalten — Dateien kopieren/überschreiben.
 Bitte Quelle/Ziel sorgfältig prüfen und im Zweifel zusätzlich Backups machen.
 
+> Hinweis: Die Benutzeroberfläche ist aktuell **nur auf Deutsch** verfügbar.
 ---
 
 ## Lizenz
