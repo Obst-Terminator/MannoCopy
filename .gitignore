@@ -1,0 +1,30 @@
+# Xcode
+.DS_Store
+DerivedData/
+*.xcuserstate
+*.xcuserdata/
+# Xcode user-specific settings
+*.xcuserdatad/
+xcuserdata/
+*.xccheckout
+*.xcodeproj/project.xcworkspace/xcuserdata/
+*.xcodeproj/xcuserdata/
+
+# SwiftPM
+.build/
+.swiftpm/
+
+# Logs
+*.log
+
+# Secrets / Signing
+*.p12
+*.cer
+*.mobileprovision
+
+# Archives
+*.xcarchive
+
+# Misc
+.idea/
+.vscode/
