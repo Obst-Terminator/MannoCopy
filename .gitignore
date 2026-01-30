@@ -9,11 +9,11 @@ xcuserdata/
 *.xccheckout
 *.xcodeproj/project.xcworkspace/xcuserdata/
 *.xcodeproj/xcuserdata/
-
+MannoCopy.xcodeproj/project.xcworkspace/xcshareddata/
 # SwiftPM
 .build/
 .swiftpm/
-
+*.bak
 # Logs
 *.log
 
