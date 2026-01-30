@@ -15,9 +15,11 @@ A small macOS app that helps you run safe `rsync` synchronizations with a clear 
 - Manage multiple sync pairs (folder-to-folder or selected files)
 - Always creates a **plan** first (dry-run)
 - Confirmation dialog before the real sync starts
-- Live progress (percentage / speed / ETA when available)
+- Live progress with smoothed speed and ETA estimation
+- Clear run phases (planning / waiting for confirmation / syncing)
+- **Safe Stop** button (cleanly terminates running `rsync` processes)
+- Built-in update mechanism (Sparkle)
 - Debug log view with copy-to-clipboard
-- **Stop** button (terminates the running `rsync` process)
 
 ---
 
@@ -29,7 +31,7 @@ A small macOS app that helps you run safe `rsync` synchronizations with a clear 
 
 ## System Requirements
 
-- macOS **Sequoia (15.0)** or later
+- macOS **Sequoia (15.6)** or later
 - Xcode **16** or later (for building from source)
 - `rsync` available on the system
 ---
