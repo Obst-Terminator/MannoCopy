@@ -7,6 +7,7 @@
 	objects = {
 
 /* Begin PBXBuildFile section */
+		8909F6D12F2D05F900BCF759 /* Sparkle in Frameworks */ = {isa = PBXBuildFile; productRef = 8909F6D02F2D05F900BCF759 /* Sparkle */; };
 		8915ED532F294C3D00A1A809 /* .gitignore in Resources */ = {isa = PBXBuildFile; fileRef = 8915ED522F294C3400A1A809 /* .gitignore */; };
 		8915ED552F294D8300A1A809 /* LICENSE in Resources */ = {isa = PBXBuildFile; fileRef = 8915ED542F294D7B00A1A809 /* LICENSE */; };
 /* End PBXBuildFile section */
@@ -17,9 +18,22 @@
 		8915ED542F294D7B00A1A809 /* LICENSE */ = {isa = PBXFileReference; lastKnownFileType = text; path = LICENSE; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
+/* Begin PBXFileSystemSynchronizedBuildFileExceptionSet section */
+		8909F6D32F2D0CA700BCF759 /* Exceptions for "MannoCopy" folder in "MannoCopy" target */ = {
+			isa = PBXFileSystemSynchronizedBuildFileExceptionSet;
+			membershipExceptions = (
+				Info.plist,
+			);
+			target = 89145FD72F25ED4A00F8659C /* MannoCopy */;
+		};
+/* End PBXFileSystemSynchronizedBuildFileExceptionSet section */
+
 /* Begin PBXFileSystemSynchronizedRootGroup section */
 		89145FDA2F25ED4A00F8659C /* MannoCopy */ = {
 			isa = PBXFileSystemSynchronizedRootGroup;
+			exceptions = (
+				8909F6D32F2D0CA700BCF759 /* Exceptions for "MannoCopy" folder in "MannoCopy" target */,
+			);
 			path = MannoCopy;
 			sourceTree = "<group>";
 		};
@@ -30,6 +44,7 @@
 			isa = PBXFrameworksBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
+				8909F6D12F2D05F900BCF759 /* Sparkle in Frameworks */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -74,6 +89,7 @@
 			);
 			name = MannoCopy;
 			packageProductDependencies = (
+				8909F6D02F2D05F900BCF759 /* Sparkle */,
 			);
 			productName = MannoCopy;
 			productReference = 89145FD82F25ED4A00F8659C /* MannoCopy.app */;
@@ -103,6 +119,9 @@
 			);
 			mainGroup = 89145FCF2F25ED4A00F8659C;
 			minimizedProjectReferenceProxies = 1;
+			packageReferences = (
+				8909F6CF2F2D05F900BCF759 /* XCRemoteSwiftPackageReference "Sparkle" */,
+			);
 			preferredProjectObjectVersion = 77;
 			productRefGroup = 89145FD92F25ED4A00F8659C /* Products */;
 			projectDirPath = "";
@@ -262,11 +281,12 @@
 				"CODE_SIGN_IDENTITY[sdk=macosx*]" = "Apple Development";
 				CODE_SIGN_STYLE = Automatic;
 				COMBINE_HIDPI_IMAGES = YES;
-				CURRENT_PROJECT_VERSION = 4;
+				CURRENT_PROJECT_VERSION = 5;
 				DEVELOPMENT_TEAM = 7QU3SGH4Y2;
 				ENABLE_APP_SANDBOX = NO;
 				ENABLE_PREVIEWS = YES;
 				GENERATE_INFOPLIST_FILE = YES;
+				INFOPLIST_FILE = MannoCopy/Info.plist;
 				INFOPLIST_KEY_CFBundleDisplayName = MannoCopy;
 				INFOPLIST_KEY_LSApplicationCategoryType = "public.app-category.utilities";
 				INFOPLIST_KEY_NSHumanReadableCopyright = "";
@@ -275,7 +295,7 @@
 					"@executable_path/../Frameworks",
 				);
 				MACOSX_DEPLOYMENT_TARGET = 15.6;
-				MARKETING_VERSION = 1.1.2;
+				MARKETING_VERSION = 1.1.3;
 				PRODUCT_BUNDLE_IDENTIFIER = de.manolitobesser.MannoCopy;
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				REGISTER_APP_GROUPS = YES;
@@ -296,11 +316,12 @@
 				"CODE_SIGN_IDENTITY[sdk=macosx*]" = "Apple Development";
 				CODE_SIGN_STYLE = Automatic;
 				COMBINE_HIDPI_IMAGES = YES;
-				CURRENT_PROJECT_VERSION = 4;
+				CURRENT_PROJECT_VERSION = 5;
 				DEVELOPMENT_TEAM = 7QU3SGH4Y2;
 				ENABLE_APP_SANDBOX = NO;
 				ENABLE_PREVIEWS = YES;
 				GENERATE_INFOPLIST_FILE = YES;
+				INFOPLIST_FILE = MannoCopy/Info.plist;
 				INFOPLIST_KEY_CFBundleDisplayName = MannoCopy;
 				INFOPLIST_KEY_LSApplicationCategoryType = "public.app-category.utilities";
 				INFOPLIST_KEY_NSHumanReadableCopyright = "";
@@ -309,7 +330,7 @@
 					"@executable_path/../Frameworks",
 				);
 				MACOSX_DEPLOYMENT_TARGET = 15.6;
-				MARKETING_VERSION = 1.1.2;
+				MARKETING_VERSION = 1.1.3;
 				PRODUCT_BUNDLE_IDENTIFIER = de.manolitobesser.MannoCopy;
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				REGISTER_APP_GROUPS = YES;
@@ -344,6 +365,25 @@
 			defaultConfigurationName = Release;
 		};
 /* End XCConfigurationList section */
+
+/* Begin XCRemoteSwiftPackageReference section */
+		8909F6CF2F2D05F900BCF759 /* XCRemoteSwiftPackageReference "Sparkle" */ = {
+			isa = XCRemoteSwiftPackageReference;
+			repositoryURL = "https://github.com/sparkle-project/Sparkle";
+			requirement = {
+				kind = upToNextMajorVersion;
+				minimumVersion = 2.8.1;
+			};
+		};
+/* End XCRemoteSwiftPackageReference section */
+
+/* Begin XCSwiftPackageProductDependency section */
+		8909F6D02F2D05F900BCF759 /* Sparkle */ = {
+			isa = XCSwiftPackageProductDependency;
+			package = 8909F6CF2F2D05F900BCF759 /* XCRemoteSwiftPackageReference "Sparkle" */;
+			productName = Sparkle;
+		};
+/* End XCSwiftPackageProductDependency section */
 	};
 	rootObject = 89145FD02F25ED4A00F8659C /* Project object */;
 }

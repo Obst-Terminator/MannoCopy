@@ -1,0 +1,10 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+	<key>SUFeedURL</key>
+	<string>https://obst-terminator.github.io/MannoCopy/appcast.xml</string>
+	<key>SUPublicEDKey</key>
+	<string>ThVHL0/cYdE6PoJCThyy8Ki843AqSExsc5hSahnnWqA=</string>
+</dict>
+</plist>

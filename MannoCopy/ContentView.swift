@@ -4,12 +4,21 @@ import AppKit
 import UniformTypeIdentifiers
 import Foundation
 import Darwin
-
-// MARK: - Datenmodell
+import Observation // Für @Observable – by Obst-Terminator
+import Sparkle
+// MARK: - Datenmodell – by Obst-Terminator
 
 enum SyncMode: String, Codable {
     case folder
     case selectedFiles
+
+    // Benutzerfreundliche Labels mit Lokalisierung – by Obst-Terminator
+    var label: String {
+        switch self {
+        case .folder: return String(localized: "Ordner")
+        case .selectedFiles: return String(localized: "Dateiauswahl")
+        }
+    }
 }
 
 enum RunPhase: String, Sendable {
@@ -17,6 +26,16 @@ enum RunPhase: String, Sendable {
     case checking
     case awaitingConfirm
     case syncing
+
+    // Benutzerfreundliche Labels mit Lokalisierung – by Obst-Terminator
+    var label: String {
+        switch self {
+        case .idle: return String(localized: "Leerlauf")
+        case .checking: return String(localized: "Prüfen")
+        case .awaitingConfirm: return String(localized: "Bestätigen")
+        case .syncing: return String(localized: "Synchronisieren")
+        }
+    }
 }
 
 nonisolated struct RunProgress: Equatable, Sendable {
@@ -25,7 +44,7 @@ nonisolated struct RunProgress: Equatable, Sendable {
     var transferredBytes: Int64 = 0
     var totalBytes: Int64 = 0
 
-    // v1.1: file counters (best-effort / estimated)
+    // v1.1: Dateizähler (bestmöglich/geschätzt) – by Obst-Terminator
     var transferredFiles: Int = 0
     var totalFiles: Int = 0
 
@@ -57,11 +76,9 @@ struct SyncItem: Identifiable, Codable, Equatable, Sendable {
         self.selectedRelativePaths = selectedRelativePaths
     }
 
+    // Kann durch das Label der Enum-Property ersetzt werden – by Obst-Terminator
     var modeLabel: String {
-        switch mode {
-        case .folder: return "Ordner"
-        case .selectedFiles: return "Dateiauswahl"
-        }
+        mode.label
     }
 }
 
@@ -73,7 +90,7 @@ struct DryRunRow: Identifiable, Equatable, Sendable {
     let bytesToTransfer: Int64
 }
 
-// MARK: - POSIX spawn helpers (Thread-safe, non-actor)
+// MARK: - POSIX-Spawn-Helfer (thread-sicher, ohne Actor) – by Obst-Terminator
 
 struct RsyncRunResult: Sendable {
     let exitCode: Int32
@@ -89,7 +106,7 @@ enum PosixSpawn {
         let output: String
     }
 
-    /// Runs a command and captures combined stdout+stderr.
+    /// Führt einen Befehl aus und erfasst kombinierte Stdout+Stderr. – by Obst-Terminator
     nonisolated static func captureAll(executablePath: String, arguments: [String]) -> Result {
         let proc = Process()
         proc.executableURL = URL(fileURLWithPath: executablePath)
@@ -112,8 +129,8 @@ enum PosixSpawn {
         return Result(exitCode: proc.terminationStatus, output: out)
     }
 
-    /// Runs a command and streams combined stdout+stderr via `onChunk`.
-    /// This variant also exposes the running Process via `onStart` so callers can cancel it.
+    /// Führt einen Befehl aus und streamt kombinierte Stdout+Stderr über `onChunk`. – by Obst-Terminator
+    /// Diese Variante stellt den laufenden Prozess über `onStart` bereit, damit Aufrufer ihn abbrechen können. – by Obst-Terminator
     nonisolated static func stream(
         executablePath: String,
         arguments: [String],
@@ -129,7 +146,7 @@ enum PosixSpawn {
         proc.standardOutput = pipe
         proc.standardError = pipe
 
-        // Thread-safe state, because readabilityHandler may run on a background queue.
+// Thread-sicherer Zustand, da der readabilityHandler in einer Hintergrund-Queue laufen kann – by Obst-Terminator
         final class StreamState: @unchecked Sendable {
             let lock = NSLock()
             var sawAnyOutput = false
@@ -140,7 +157,7 @@ enum PosixSpawn {
                 for line in chunk.split(separator: "\n", omittingEmptySubsequences: false) {
                     let t = line.trimmingCharacters(in: .whitespacesAndNewlines)
                     if t.isEmpty { continue }
-                    // progress2 enthält typischerweise '%' und ':' (ETA)
+                        // progress2 enthält typischerweise '%' und ':' (ETA) – by Obst-Terminator
                     if t.contains("%") && t.contains(":") { continue }
                     lastNonProgressLine = t
                 }
@@ -178,14 +195,14 @@ enum PosixSpawn {
             return RsyncRunResult(exitCode: 127, sawAnyOutput: true, lastNonProgressLine: msg.trimmingCharacters(in: .whitespacesAndNewlines), wasCancelled: false)
         }
 
-        // Expose the running process for cancellation.
+        // Laufenden Prozess für Abbruch verfügbar machen – by Obst-Terminator
         onStart?(proc)
 
-        // Wait for termination.
+        // Auf Beendigung warten – by Obst-Terminator
         _ = sema.wait(timeout: .distantFuture)
         proc.waitUntilExit()
 
-        // Drain remaining data (if any) and stop handler.
+        // Verbleibende Daten (falls vorhanden) auslesen und Handler beenden – by Obst-Terminator
         pipe.fileHandleForReading.readabilityHandler = nil
         let remaining = pipe.fileHandleForReading.readDataToEndOfFile()
         if !remaining.isEmpty {
@@ -206,7 +223,7 @@ enum PosixSpawn {
         return RsyncRunResult(exitCode: proc.terminationStatus, sawAnyOutput: saw, lastNonProgressLine: last, wasCancelled: cancelled)
     }
 
-    /// Convenience wrapper keeping the old signature.
+    /// Komfort-Wrapper, der die alte Signatur beibehält. – by Obst-Terminator
     nonisolated static func stream(
         executablePath: String,
         arguments: [String],
@@ -216,7 +233,31 @@ enum PosixSpawn {
     }
 }
 
-// MARK: - Helpers
+// MARK: - Sparkle Auto-Update – by Obst-Terminator
+
+@MainActor
+final class SparkleManager: ObservableObject {
+
+    static let shared = SparkleManager()
+
+    /// Der Sparkle-Updater (muss während der App-Laufzeit am Leben bleiben). – by Obst-Terminator
+    let updaterController: SPUStandardUpdaterController
+
+    private init() {
+        updaterController = SPUStandardUpdaterController(startingUpdater: true,
+                                                         updaterDelegate: nil,
+                                                         userDriverDelegate: nil)
+
+        // Appcast-URL wird über Info.plist (Schlüssel: SUFeedURL) konfiguriert. – by Obst-Terminator
+
+        updaterController.updater.automaticallyChecksForUpdates = true
+        updaterController.updater.updateCheckInterval = 60 * 60 * 24 // 24h
+    }
+
+    func checkForUpdates() {
+        updaterController.checkForUpdates(nil)
+    }
+}
 
 enum PathRules {
     nonisolated static func normalizeFolderPath(_ path: String) -> String {
@@ -227,11 +268,11 @@ enum PathRules {
         path.hasSuffix("/") ? String(path.dropLast()) : path
     }
 
-    /// Folder-Pair Zielregel:
-    /// - Quelle: Inhalt des Ordners (trailing slash)
+    /// Zielregel für Ordner-Paare:
+    /// - Quelle: Inhalt des Ordners (mit Slash am Ende)
     /// - Ziel:
-    ///   - Wenn User schon .../<Ordnername> gewählt hat => direkt dahin
-    ///   - Sonst => .../<Ordnername> anlegen
+    ///   - Wenn der Nutzer bereits .../<Ordnername> gewählt hat → direkt dorthin
+    ///   - Sonst → .../<Ordnername> anlegen – by Obst-Terminator
     nonisolated static func folderPairDestination(chosenTargetPath: String, sourceFolderName: String) -> String {
         let chosen = normalizeNoTrailingSlash(chosenTargetPath)
         let chosenName = URL(fileURLWithPath: chosen).lastPathComponent
@@ -266,15 +307,15 @@ enum RsyncParse {
         return (files, bytes)
     }
 
-    /// rsync 3.x: --info=progress2 (speed can be human-readable like MB/s even with --no-human-readable)
+    /// rsync 3.x: --info=progress2 (Geschwindigkeit kann menschenlesbar wie MB/s sein, selbst mit --no-human-readable) – by Obst-Terminator
     nonisolated static func progress2(from chunk: String) -> RunProgress? {
         let lines = chunk.split(separator: "\n").map(String.init)
         guard let line = lines.first(where: { $0.contains("%") && $0.contains(":") }) else { return nil }
 
-        // Examples (varies by rsync version/build):
+        // Beispiele (variiert je nach rsync-Version/Bauart): – by Obst-Terminator
         // "  1234567  12%   34.56MB/s    0:00:12"
         // "  1234567  12%   34567.89  0:00:12" (bytes/s)
-        // We capture optional unit suffix.
+        // Wir erfassen die optionale Einheit am Ende. – by Obst-Terminator
         let pattern = #"^\s*(\d+)\s+(\d+)%\s+(\d+(?:\.\d+)?)\s*([A-Za-z]+(?:/s)?)?\s+([0-9]+):([0-9]+):([0-9]+)"#
         guard let re = try? NSRegularExpression(pattern: pattern),
               let m = re.firstMatch(in: line, range: NSRange(location: 0, length: line.utf16.count))
@@ -299,7 +340,7 @@ enum RsyncParse {
                 return value
             }
 
-            // Normalize like "MB/s" -> "mb", "kB/s" -> "kb", "KiB/s" -> "kib"
+            // Normalisieren wie "MB/s" -> "mb", "kB/s" -> "kb", "KiB/s" -> "kib" – by Obst-Terminator
             var u = u0.lowercased()
             if u.hasSuffix("/s") { u = String(u.dropLast(2)) }
             u = u.trimmingCharacters(in: .whitespacesAndNewlines)
@@ -316,7 +357,7 @@ enum RsyncParse {
             case "tb", "tib":
                 return value * 1024.0 * 1024.0 * 1024.0 * 1024.0
             default:
-                // Unknown unit: best effort—treat as bytes/sec
+                // Unbekannte Einheit: bestmöglich als Bytes/Sekunde behandeln – by Obst-Terminator
                 return value
             }
         }
@@ -335,7 +376,7 @@ enum RsyncParse {
         p.speedBytesPerSec = speedBytesPerSec
         p.etaSeconds = eta
 
-        // Keep existing behavior: when percent is available, we can approximate a total.
+        // Bestehendes Verhalten beibehalten: Wenn Prozentwerte verfügbar sind, kann eine Gesamtsumme geschätzt werden. – by Obst-Terminator
         if percentInt > 0 {
             let approxTotal = Int64(Double(transferred) / (Double(percentInt) / 100.0))
             p.totalBytes = approxTotal
@@ -344,7 +385,7 @@ enum RsyncParse {
         return p
     }
 
-    /// Fallback Apple rsync 2.6.9: --progress (percentage only)
+    /// Fallback für Apple rsync 2.6.9: --progress (nur Prozentanzeige) – by Obst-Terminator
     nonisolated static func percentOnly(from chunk: String) -> RunProgress? {
         let lines = chunk.split(separator: "\n").map(String.init)
         guard let line = lines.first(where: { $0.contains("%") }) else { return nil }
@@ -441,13 +482,13 @@ enum RsyncArgs {
         return (args, srcShown, dstShown)
     }
 
-    /// Args for streaming a dry-run that prints one line per file with its size.
-    /// We use this to provide live "discovered files / bytes" counters during the checking phase.
+    /// Argumente für das Streaming eines Dry-Runs, der eine Zeile pro Datei mit deren Größe ausgibt. – by Obst-Terminator
+    /// Dies wird verwendet, um während der Prüfphase live „entdeckte Dateien / Bytes“-Zähler anzuzeigen. – by Obst-Terminator
     nonisolated static func makeDryRunCounting(item: SyncItem) -> ([String], String, String) {
-        // -a (archive) + -u (update) matches real run behavior.
-        // --dry-run ensures no changes.
-        // --out-format prints: <size>\t<name>
-        // --no-human-readable keeps sizes as plain integers.
+        // -a (Archiv) + -u (Update) entspricht dem Verhalten des echten Laufs. – by Obst-Terminator
+        // --dry-run stellt sicher, dass keine Änderungen vorgenommen werden. – by Obst-Terminator
+        // --out-format gibt aus: <Größe>\t<Name> – by Obst-Terminator
+        // --no-human-readable hält Größen als reine Zahlen. – by Obst-Terminator
         var args: [String] = ["-a", "-u", "--dry-run", "--no-human-readable", "--out-format=%l\t%n"]
 
         let srcShown: String
@@ -488,7 +529,7 @@ enum RsyncArgs {
     }
 }
 
-// MARK: - UI Helpers
+// MARK: - UI-Hilfen – by Obst-Terminator
 
 @MainActor private func formatBytes(_ bytes: Int64) -> String {
     // Use the class helper to avoid creating a formatter instance (Swift 6 / @MainActor annotations in Foundation can be strict).
@@ -497,8 +538,10 @@ enum RsyncArgs {
 
 @MainActor private func formatSpeed(_ bytesPerSec: Double) -> String {
     guard bytesPerSec > 0 else { return "–" }
-    let mb = bytesPerSec / (1024.0 * 1024.0)
-    return String(format: "%.2f MB/s", mb)
+
+    // Use ByteCountFormatter so throughput is shown in human-friendly units (KB/MB/GB per second).
+    let pretty = ByteCountFormatter.string(fromByteCount: Int64(bytesPerSec.rounded()), countStyle: .file)
+    return "\(pretty)/s"
 }
 
 @MainActor private func formatETA(_ seconds: Int?) -> String {
@@ -516,14 +559,14 @@ struct DebugLogView: View {
     let autoScrollToBottom: Bool
 
     var body: some View {
-        LogTextView(text: text.isEmpty ? "(keine Debug-Ausgabe)" : text, autoScrollToBottom: autoScrollToBottom)
+        LogTextView(text: text.isEmpty ? String(localized: "(keine Debug-Ausgabe)") : text, autoScrollToBottom: autoScrollToBottom)
             .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .leading)
             .background(Color(nsColor: .textBackgroundColor))
             .overlay(RoundedRectangle(cornerRadius: 6).stroke(Color.gray.opacity(0.25), lineWidth: 1))
             .cornerRadius(6)
     }
 
-    /// AppKit-backed, read-only log view that wraps long lines and never requires horizontal scrolling.
+    /// AppKit-basierte, schreibgeschützte Log-Ansicht, die lange Zeilen umbricht und keinen horizontalen Bildlauf benötigt. – by Obst-Terminator
     private struct LogTextView: NSViewRepresentable {
         let text: String
         let autoScrollToBottom: Bool
@@ -541,7 +584,7 @@ struct DebugLogView: View {
             textView.drawsBackground = false
             textView.font = NSFont.monospacedSystemFont(ofSize: NSFont.systemFontSize, weight: .regular)
 
-            // Force wrapping (no horizontal expansion).
+            // Zeilenumbruch erzwingen (keine horizontale Ausdehnung). – by Obst-Terminator
             textView.isHorizontallyResizable = false
             textView.isVerticallyResizable = true
             textView.autoresizingMask = [.width]
@@ -561,7 +604,7 @@ struct DebugLogView: View {
             scroll.drawsBackground = false
 
             textView.string = text
-            // Start at bottom for long logs.
+            // Bei langen Logs am Ende beginnen. – by Obst-Terminator
             let end = (textView.string as NSString).length
             textView.scrollRangeToVisible(NSRange(location: end, length: 0))
             return scroll
@@ -570,12 +613,12 @@ struct DebugLogView: View {
         func updateNSView(_ nsView: NSScrollView, context: Context) {
             guard let tv = nsView.documentView as? NSTextView else { return }
 
-            // Only update when needed.
+            // Nur bei Bedarf aktualisieren. – by Obst-Terminator
             if tv.string != text {
                 tv.string = text
             }
 
-            // Auto-scroll when enabled and content grew.
+            // Automatisch scrollen, wenn aktiviert und der Inhalt gewachsen ist. – by Obst-Terminator
             let currentCount = (tv.string as NSString).length
             if autoScrollToBottom, currentCount > context.coordinator.lastTextCount {
                 tv.scrollRangeToVisible(NSRange(location: currentCount, length: 0))
@@ -585,33 +628,36 @@ struct DebugLogView: View {
     }
 }
 
-// MARK: - Model (UI-Updates über MainActor)
+// MARK: - Modell (Swift 5.9 @Observable für automatische Bindings) – by Obst-Terminator
 
-@MainActor
-final class MannoCopyModel: ObservableObject {
+// MannoCopyModel als @Observable mit normalen Properties statt @Published – by Obst-Terminator
+@Observable
+final class MannoCopyModel {
 
-    @Published var items: [SyncItem] = []
-    @Published var isDryRun: Bool = true
-    @Published var isRunning: Bool = false
+    // Normale Properties mit Anfangswerten – by Obst-Terminator
 
-    // Cancellation / Stop
-    @Published var cancelRequested: Bool = false
+    var items: [SyncItem] = []
+    var isDryRun: Bool = true
+    var isRunning: Bool = false
 
-    // The currently running rsync Process (if any). Used for Stop.
-    private var activeProcess: Process? = nil
+    // Abbruch / Stopp – by Obst-Terminator
+    var cancelRequested: Bool = false
 
-    // v1.1 flow state
-    @Published var runPhase: RunPhase = .idle
-    @Published var showSyncConfirm: Bool = false
-    @Published var preparedPlanMessage: String = ""
+    // Die aktuell laufenden rsync-Prozesse. Wird für Stopp verwendet. – by Obst-Terminator
+    private var activeProcesses: [UUID: Process] = [:]
 
-    // Dry-Run
-    // Live discovery counters shown next to the spinner during checking
-    @Published var checkingDiscoveredFiles: Int = 0
-    @Published var checkingDiscoveredBytes: Int64 = 0
+    // v1.1 Flow-Status – by Obst-Terminator
+    var runPhase: RunPhase = .idle
+    var showSyncConfirm: Bool = false
+    var preparedPlanMessage: String = ""
 
-    // Cats (dry-run only)
-    @Published var checkingCatMessage: String = ""
+    // Dry-Run – by Obst-Terminator
+    // Live-Zähler für entdeckte Dateien neben dem Spinner während der Prüfung – by Obst-Terminator
+    var checkingDiscoveredFiles: Int = 0
+    var checkingDiscoveredBytes: Int64 = 0
+
+    // Katzen (nur Dry-Run) – by Obst-Terminator
+    var checkingCatMessage: String = ""
     private let catMessages: [String] = [
         "🐈 Louis klappert mit dem Napf…",
         "🐈‍⬛ King Kong sucht seine Korkmaus…",
@@ -648,24 +694,52 @@ final class MannoCopyModel: ObservableObject {
     ]
     private var catIndex: Int = 0
     private var catTimer: DispatchSourceTimer?
-    @Published var dryRunRows: [DryRunRow] = []
-    @Published var dryRunTotalFiles: Int = 0
-    @Published var dryRunTotalBytes: Int64 = 0
-    @Published var dryRunStatusText: String = ""
+    var dryRunRows: [DryRunRow] = []
+    var dryRunTotalFiles: Int = 0
+    var dryRunTotalBytes: Int64 = 0
+    var dryRunStatusText: String = ""
 
-    // Real
-    @Published var progress: RunProgress = .zero
-    @Published var currentPairLabel: String = ""
+    // Hinweis bei großem Plan (automatisch im Dry-Run erkannt) – by Obst-Terminator
+    var showLargePlanHint: Bool = false
+    var largePlanHintText: String = ""
 
-    // Debug / status
-    @Published var debugLogText: String = ""
-    @Published var lastRunMessage: String = ""
-    @Published var lastExitCode: Int32? = nil
+    private var skipPlanRequested: Bool = false
 
-    // Debug view options
-    @Published var autoScrollDebug: Bool = true
+    // Heuristische Schwellenwerte (für HDD/SMB optimiert) – by Obst-Terminator
+    private let largePlanFilesThreshold: Int = 150_000
+    private let largePlanBytesThreshold: Int64 = 500 * 1024 * 1024 * 1024 // 500 GB
 
-    // Keep the log bounded so the UI stays fast even for huge runs.
+    // Durchsatz-Glättung (vermeidet unruhige UI-Anzeige) – by Obst-Terminator
+    private var recentSpeeds: [Double] = []
+    private let speedSmoothingWindow: Int = 5
+
+    private func resetSpeedSmoothing() {
+        recentSpeeds.removeAll(keepingCapacity: true)
+    }
+
+    private func smoothedSpeed(_ rawBytesPerSec: Double) -> Double {
+        guard rawBytesPerSec > 0 else { return 0 }
+        recentSpeeds.append(rawBytesPerSec)
+        if recentSpeeds.count > speedSmoothingWindow {
+            recentSpeeds.removeFirst(recentSpeeds.count - speedSmoothingWindow)
+        }
+        let sum = recentSpeeds.reduce(0, +)
+        return sum / Double(recentSpeeds.count)
+    }
+
+    // Echt – by Obst-Terminator
+    var progress: RunProgress = .zero
+    var currentPairLabel: String = ""
+
+    // Debug / Status – by Obst-Terminator
+    var debugLogText: String = ""
+    var lastRunMessage: String = ""
+    var lastExitCode: Int32? = nil
+
+    // Debug-Ansicht Optionen – by Obst-Terminator
+    var autoScrollDebug: Bool = true
+
+    // Log begrenzen, damit die UI auch bei großen Läufen schnell bleibt. – by Obst-Terminator
     private let debugMaxChars: Int = 2_000_000
 
     func appendDebug(_ s: String) {
@@ -681,35 +755,71 @@ final class MannoCopyModel: ObservableObject {
         pb.setString(debugLogText, forType: .string)
     }
 
-    /// Stop the currently running rsync process (if any). Uses SIGTERM first, then SIGKILL as fallback.
+    /// Stoppt die aktuell laufenden rsync-Prozesse (falls vorhanden). Verwendet zuerst SIGTERM, dann SIGKILL als Fallback. – by Obst-Terminator
     func stopRunning() {
         guard isRunning else { return }
         cancelRequested = true
         stopCatTimer()
 
-        guard let proc = activeProcess else {
+        let procs = activeProcesses
+        if procs.isEmpty {
             runPhase = .idle
             isRunning = false
-            lastRunMessage = "Abgebrochen."
+            lastRunMessage = String(localized: "Abgebrochen.")
             lastExitCode = nil
             appendDebug("\n=== STOP: kein aktiver Prozess gefunden ===\n")
             return
         }
 
-        let pid = proc.processIdentifier
-        appendDebug("\n=== STOP: sende SIGTERM an rsync (pid: \(pid)) ===\n")
-
-        proc.terminate() // SIGTERM
+        for (id, proc) in procs {
+            let pid = proc.processIdentifier
+            appendDebug("\n=== STOP: sende SIGTERM an rsync (pid: \(pid)) [\(id)] ===\n")
+            proc.terminate() // SIGTERM
+        }
 
         DispatchQueue.main.asyncAfter(deadline: .now() + 1.0) { [weak self] in
             guard let self else { return }
-            guard let p = self.activeProcess else { return }
-            if p.isRunning {
-                let pid2 = p.processIdentifier
-                self.appendDebug("=== STOP: rsync läuft noch, sende SIGKILL (pid: \(pid2)) ===\n")
-                _ = Darwin.kill(pid2, SIGKILL)
+            let still = self.activeProcesses
+            for (id, p) in still {
+                if p.isRunning {
+                    let pid2 = p.processIdentifier
+                    self.appendDebug("=== STOP: rsync läuft noch, sende SIGKILL (pid: \(pid2)) [\(id)] ===\n")
+                    _ = Darwin.kill(pid2, SIGKILL)
+                }
             }
         }
+    }
+
+    /// Hinweis schließen und mit der Planung fortfahren. – by Obst-Terminator
+    func continuePlanning() {
+        showLargePlanHint = false
+    }
+
+    /// Fordert das Überspringen des Plans an: bricht aktuellen Dry-Run ab und startet sofort die Synchronisation. – by Obst-Terminator
+    func skipPlanAndSyncNow() {
+        skipPlanRequested = true
+        showLargePlanHint = false
+        // Reuse Stop logic to terminate all active dry-run rsync processes.
+        stopRunning()
+    }
+
+
+    private func maybeShowLargePlanHint() {
+        guard runPhase == .checking else { return }
+        guard !showLargePlanHint else { return }
+        guard !skipPlanRequested else { return }
+
+        let hitFiles = checkingDiscoveredFiles >= largePlanFilesThreshold
+        let hitBytes = checkingDiscoveredBytes >= largePlanBytesThreshold
+        guard hitFiles || hitBytes else { return }
+
+        showLargePlanHint = true
+
+        var parts: [String] = []
+        if hitFiles { parts.append("≥ \(largePlanFilesThreshold.formatted()) Dateien") }
+        if hitBytes { parts.append("≥ \(formatBytes(largePlanBytesThreshold))") }
+        let reason = parts.joined(separator: " oder ")
+        largePlanHintText = "Großes Dataset erkannt (\(reason)). Die Planung kann sehr lange dauern (Stunden). Du kannst den Plan überspringen und direkt synchronisieren."
     }
 
     private func startCatTimerIfNeeded() {
@@ -736,7 +846,7 @@ final class MannoCopyModel: ObservableObject {
 
     private let storageKey = "MannoCopy.Items.vClean"
 
-    // Prepared plan from the last dry-run (used as progress baseline for the subsequent real run)
+    // Vorbereiteter Plan aus dem letzten Dry-Run (als Fortschritts-Baseline für den folgenden echten Lauf) – by Obst-Terminator
     private var plannedBytesByID: [UUID: Int64] = [:]
     private var preparedSnapshot: [SyncItem] = []
 
@@ -775,14 +885,14 @@ final class MannoCopyModel: ObservableObject {
         saveItems()
     }
 
-    // MARK: Dialogs
+    // MARK: Dialoge – by Obst-Terminator
 
     nonisolated func selectFolder(title: String) async -> URL? {
         await withCheckedContinuation { cont in
             Task { @MainActor in
                 let p = NSOpenPanel()
                 p.title = title
-                p.prompt = "Auswählen"
+                p.prompt = String(localized: "Auswählen")
                 p.canChooseDirectories = true
                 p.canChooseFiles = false
                 p.allowsMultipleSelection = false
@@ -796,8 +906,8 @@ final class MannoCopyModel: ObservableObject {
             Task { @MainActor in
                 let p = NSOpenPanel()
                 p.title = title
-                p.message = "Navigiere in den Ordner und wähle die gewünschten Dateien aus."
-                p.prompt = "Auswählen"
+                p.message = String(localized: "Navigiere in den Ordner und wähle die gewünschten Dateien aus.")
+                p.prompt = String(localized: "Auswählen")
                 p.canChooseFiles = true
                 p.canChooseDirectories = false
                 p.allowsMultipleSelection = true
@@ -809,11 +919,11 @@ final class MannoCopyModel: ObservableObject {
         }
     }
 
-    // MARK: Items
+    // MARK: Einträge – by Obst-Terminator
 
     func addFolderItem() async {
-        guard let src = await selectFolder(title: "Quelle (Ordner) auswählen"),
-              let dst = await selectFolder(title: "Ziel (Ordner) auswählen")
+        guard let src = await selectFolder(title: String(localized: "Quelle (Ordner) auswählen")),
+              let dst = await selectFolder(title: String(localized: "Ziel (Ordner) auswählen"))
         else { return }
 
         items.append(SyncItem(mode: .folder, sourceBasePath: src.path, targetPath: dst.path))
@@ -821,7 +931,7 @@ final class MannoCopyModel: ObservableObject {
     }
 
     func addSelectedFilesItem() async {
-        let files = await pickFiles(title: "Dateien auswählen")
+        let files = await pickFiles(title: String(localized: "Dateien auswählen"))
         guard let first = files.first else { return }
 
         let base = first.deletingLastPathComponent()
@@ -830,7 +940,7 @@ final class MannoCopyModel: ObservableObject {
             return
         }
 
-        guard let dst = await selectFolder(title: "Ziel (Ordner) auswählen") else { return }
+        guard let dst = await selectFolder(title: String(localized: "Ziel (Ordner) auswählen")) else { return }
 
         let basePath = PathRules.normalizeFolderPath(base.path)
         let rels = files.compactMap { url -> String? in
@@ -847,7 +957,7 @@ final class MannoCopyModel: ObservableObject {
         saveItems()
     }
 
-    // MARK: Run
+    // MARK: Ausführen – by Obst-Terminator
 
     func runActionButton() {
         // Legacy entry point kept for internal use.
@@ -856,7 +966,7 @@ final class MannoCopyModel: ObservableObject {
         startCheckAndSyncFlow()
     }
 
-    /// New primary flow for v1.1: always dry-run first, then ask for confirmation.
+    /// Neuer Hauptablauf für v1.1: immer zuerst Dry-Run, dann um Bestätigung fragen. – by Obst-Terminator
     func startCheckAndSyncFlow() {
         guard !isRunning else { return }
         guard !items.isEmpty else { return }
@@ -888,9 +998,34 @@ final class MannoCopyModel: ObservableObject {
             }
 
             // Phase 1: Dry-run (plan)
-            await self.runDryRunWorker(snapshot: initial.items, rsyncPath: localRsyncPath, supportsProgress2: localSupportsProgress2)
+            let completedPlan = await self.runDryRunWorker(snapshot: initial.items, rsyncPath: localRsyncPath, supportsProgress2: localSupportsProgress2)
 
             // Prepare plan baseline for progress.
+            let shouldSkip = await MainActor.run { self.skipPlanRequested }
+            if shouldSkip {
+                await MainActor.run {
+                    self.showLargePlanHint = false
+                    self.largePlanHintText = ""
+                    self.showSyncConfirm = false
+                    self.runPhase = .syncing
+                    self.isRunning = true
+                    self.preparedSnapshot = initial.items
+                    self.plannedBytesByID = [:]
+                    self.preparedPlanMessage = ""
+                }
+
+                await self.runRealRunWorker(snapshot: initial.items, rsyncPath: localRsyncPath, supportsProgress2: localSupportsProgress2)
+
+                await MainActor.run {
+                    self.isRunning = false
+                    self.runPhase = .idle
+                    self.skipPlanRequested = false
+                }
+                return
+            }
+
+            if !completedPlan { return }
+
             let planned = await MainActor.run { () -> [UUID: Int64] in
                 Dictionary(uniqueKeysWithValues: self.dryRunRows.map { ($0.id, $0.bytesToTransfer) })
             }
@@ -898,7 +1033,7 @@ final class MannoCopyModel: ObservableObject {
             await MainActor.run {
                 self.plannedBytesByID = planned
                 self.preparedSnapshot = initial.items
-                self.preparedPlanMessage = "Zu übertragen: \(self.dryRunTotalFiles) Datei(en) • \(formatBytes(self.dryRunTotalBytes))\n\nSynchronisation jetzt starten?"
+                self.preparedPlanMessage = String(localized: "Zu übertragen: \(self.dryRunTotalFiles) Datei(en) • \(formatBytes(self.dryRunTotalBytes))\n\nSynchronisation jetzt starten?")
                 self.isRunning = false
                 self.runPhase = .awaitingConfirm
                 self.showSyncConfirm = true
@@ -906,7 +1041,7 @@ final class MannoCopyModel: ObservableObject {
         }
     }
 
-    /// Called after the user confirmed the pop-up.
+    /// Wird aufgerufen, nachdem der Nutzer das Pop-up bestätigt hat. – by Obst-Terminator
     func startPreparedSync() {
         guard !isRunning else { return }
         guard !preparedSnapshot.isEmpty else { return }
@@ -952,138 +1087,212 @@ final class MannoCopyModel: ObservableObject {
         checkingDiscoveredFiles = 0
         checkingDiscoveredBytes = 0
         cancelRequested = false
-        activeProcess = nil
+        activeProcesses.removeAll()
+        showLargePlanHint = false
+        largePlanHintText = ""
+        skipPlanRequested = false
         stopCatTimer()
+        resetSpeedSmoothing()
     }
 
     private func resetRealOutputsOnly() {
         cancelRequested = false
-        activeProcess = nil
+        activeProcesses.removeAll()
+        showLargePlanHint = false
+        largePlanHintText = ""
+        skipPlanRequested = false
         stopCatTimer()
         progress = .zero
+        resetSpeedSmoothing()
         currentPairLabel = ""
 
-        // File counters are per sync run; bytes baseline comes from the plan.
+        // Dateizähler sind pro Sync-Lauf; Bytes-Baseline kommt aus dem Plan. – by Obst-Terminator
         progress.transferredFiles = 0
         progress.totalFiles = 0
 
         lastRunMessage = ""
         lastExitCode = nil
-        // Keep dryRunRows / totals so the user can still see the plan.
+        // dryRunRows / Summen behalten, damit der Nutzer den Plan weiterhin sehen kann. – by Obst-Terminator
     }
 
-    private nonisolated func runDryRunWorker(snapshot: [SyncItem], rsyncPath: String, supportsProgress2: Bool) async {
-        await MainActor.run { self.dryRunStatusText = "Ermittle zu übertragende Datenmenge…" }
+    private nonisolated func runDryRunWorker(snapshot: [SyncItem], rsyncPath: String, supportsProgress2: Bool) async -> Bool {
+        await MainActor.run { self.dryRunStatusText = String(localized: "Ermittle zu übertragende Datenmenge…") }
         await MainActor.run { self.startCatTimerIfNeeded() }
 
-        var rows: [DryRunRow] = []
-        var totalFiles = 0
-        var totalBytes: Int64 = 0
+        // Dry-Run-Zählung parallelisieren mit kleinem Limit, um Festplatten/Netzwerk-Shares nicht zu überlasten. – by Obst-Terminator
+        let maxConcurrent = 2
 
-        for (idx, item) in snapshot.enumerated() {
-            await MainActor.run {
-                self.dryRunStatusText = "\(idx + 1)/\(snapshot.count): Ermittle Dateien…"
+        actor AsyncSemaphore {
+            private var value: Int
+            init(_ value: Int) { self.value = value }
+            func wait() async {
+                while value == 0 { await Task.yield() }
+                value -= 1
+            }
+            func signal() { value += 1 }
+        }
+
+        let sem = AsyncSemaphore(maxConcurrent)
+
+        // Ergebnisse nach ID speichern, damit die UI-Reihenfolge stabil bleibt (wie Snapshot-Reihenfolge). – by Obst-Terminator
+        actor DryRunAggregator {
+            private var rowsByID: [UUID: DryRunRow] = [:]
+            private var totalsByID: [UUID: (files: Int, bytes: Int64)] = [:]
+
+            func set(id: UUID, row: DryRunRow, files: Int, bytes: Int64) {
+                rowsByID[id] = row
+                totalsByID[id] = (files: files, bytes: bytes)
             }
 
-            let (args, srcShown, dstShown) = RsyncArgs.makeDryRunCounting(item: item)
+            func orderedRows(snapshot: [SyncItem]) -> [DryRunRow] {
+                snapshot.compactMap { rowsByID[$0.id] }
+            }
 
-            // Per-item counters (then we also add them to the global totals).
-            var itemFiles = 0
-            var itemBytes: Int64 = 0
-
-            // Buffer partial lines across chunks.
-            var pending = ""
-
-            let result = PosixSpawn.stream(executablePath: rsyncPath, arguments: args, onStart: { [weak self] proc in
-                DispatchQueue.main.async { [weak self] in
-                    self?.activeProcess = proc
-                }
-            }) { [weak self] chunk in
-                guard let self else { return }
-
-                // Also write checking output into the debug log so the user can inspect what rsync did.
-                DispatchQueue.main.async { [weak self] in
-                    self?.appendDebug(chunk)
-                }
-
-                pending += chunk
-
-                // Process complete lines only; keep the remainder in `pending`.
-                // rsync may use \n, \r\n, or sometimes \r.
-                while let idx = pending.firstIndex(where: { $0 == "\n" || $0 == "\r" }) {
-                    let line = String(pending[..<idx])
-
-                    // Drop the line + any following newline characters (handles \r\n).
-                    var next = pending.index(after: idx)
-                    while next < pending.endIndex, (pending[next] == "\n" || pending[next] == "\r") {
-                        next = pending.index(after: next)
-                    }
-                    pending = String(pending[next...])
-
-                    // Expected format: "<size>\t<name>" (size is decimal bytes)
-                    let trimmed = line.trimmingCharacters(in: .whitespacesAndNewlines)
-                    if trimmed.isEmpty { continue }
-
-                    // Split once on tab: "<size>\t<name>"
-                    let parts = trimmed.split(separator: "\t", maxSplits: 1, omittingEmptySubsequences: false)
-                    guard parts.count == 2 else { continue }
-
-                    let sizeStr = String(parts[0]).trimmingCharacters(in: .whitespacesAndNewlines)
-                    guard let sz = Int64(sizeStr) else { continue }
-
-                    let name = String(parts[1]).trimmingCharacters(in: .whitespacesAndNewlines)
-
-                    // Count ONLY files. Directories from rsync typically end with "/" or are "." / "./".
-                    if name == "." || name == "./" { continue }
-                    if name.hasSuffix("/") { continue }
-
-                    itemFiles += 1
-                    itemBytes += max(0, sz)
-
-                    // Push live updates to the UI.
-                    DispatchQueue.main.async { [weak self] in
-                        guard let self else { return }
-                        self.checkingDiscoveredFiles += 1
-                        self.checkingDiscoveredBytes += max(0, sz)
-                    }
+            func totals() -> (files: Int, bytes: Int64) {
+                totalsByID.values.reduce(into: (files: 0, bytes: Int64(0))) { acc, v in
+                    acc.files += v.files
+                    acc.bytes += v.bytes
                 }
             }
 
-            let cancelledNow = await MainActor.run { self.cancelRequested }
-            await MainActor.run { self.activeProcess = nil }
-
-            if cancelledNow {
-                await MainActor.run {
-                    self.isRunning = false
-                    self.runPhase = .idle
-                    self.lastRunMessage = "Plan-Erstellung abgebrochen."
-                    self.stopCatTimer()
-                }
-                return
-            }
-
-            _ = result
-
-            totalFiles += itemFiles
-            totalBytes += itemBytes
-
-            rows.append(DryRunRow(id: item.id, source: srcShown, target: dstShown, filesToTransfer: itemFiles, bytesToTransfer: itemBytes))
-
-            let rowsSnapshot = rows
-            let totalFilesSnapshot = totalFiles
-            let totalBytesSnapshot = totalBytes
-            await MainActor.run {
-                self.dryRunRows = rowsSnapshot
-                self.dryRunTotalFiles = totalFilesSnapshot
-                self.dryRunTotalBytes = totalBytesSnapshot
-                self.dryRunStatusText = "\(idx + 1)/\(snapshot.count): Fertig."
+            func doneCount() -> Int {
+                rowsByID.count
             }
         }
 
+        let aggregator = DryRunAggregator()
+
+        await withTaskGroup(of: Void.self) { group in
+            for (idx, item) in snapshot.enumerated() {
+                group.addTask { [weak self] in
+                    guard let self else { return }
+
+                    await sem.wait()
+                    defer { Task { await sem.signal() } }
+
+                    // Cancel early if requested.
+                    let cancelledEarly = await MainActor.run { self.cancelRequested }
+                    if cancelledEarly { return }
+
+                    await MainActor.run {
+                        self.dryRunStatusText = "\(idx + 1)/\(snapshot.count): \(String(localized: "Ermittle Dateien…"))"
+                    }
+
+                    let (args, srcShown, dstShown) = RsyncArgs.makeDryRunCounting(item: item)
+
+                    var itemFiles = 0
+                    var itemBytes: Int64 = 0
+                    var pending = ""
+
+                    // Den blockierenden Stream auf einem GCD-Thread ausführen, um Swift-Concurrency-Threads nicht zu blockieren. – by Obst-Terminator
+                    let _ = await withCheckedContinuation { (cont: CheckedContinuation<RsyncRunResult, Never>) in
+                        DispatchQueue.global(qos: .userInitiated).async { [weak self] in
+                            guard let self else {
+                                cont.resume(returning: RsyncRunResult(exitCode: 127, sawAnyOutput: false, lastNonProgressLine: "", wasCancelled: false))
+                                return
+                            }
+
+                            let result = PosixSpawn.stream(executablePath: rsyncPath, arguments: args, onStart: { [weak self] proc in
+                                DispatchQueue.main.async { [weak self] in
+                                    self?.activeProcesses[item.id] = proc
+                                }
+                            }) { [weak self] chunk in
+                                guard let self else { return }
+
+                                // Die Prüfausgabe ebenfalls ins Debug-Log schreiben, damit der Nutzer nachvollziehen kann, was rsync gemacht hat. – by Obst-Terminator
+                                DispatchQueue.main.async { [weak self] in
+                                    self?.appendDebug(chunk)
+                                }
+
+                                pending += chunk
+
+                                while let cut = pending.firstIndex(where: { $0 == "\n" || $0 == "\r" }) {
+                                    let line = String(pending[..<cut])
+
+                                    var next = pending.index(after: cut)
+                                    while next < pending.endIndex, (pending[next] == "\n" || pending[next] == "\r") {
+                                        next = pending.index(after: next)
+                                    }
+                                    pending = String(pending[next...])
+
+                                    let trimmed = line.trimmingCharacters(in: .whitespacesAndNewlines)
+                                    if trimmed.isEmpty { continue }
+
+                                    let parts = trimmed.split(separator: "\t", maxSplits: 1, omittingEmptySubsequences: false)
+                                    guard parts.count == 2 else { continue }
+
+                                    let sizeStr = String(parts[0]).trimmingCharacters(in: .whitespacesAndNewlines)
+                                    guard let sz = Int64(sizeStr) else { continue }
+
+                                    let name = String(parts[1]).trimmingCharacters(in: .whitespacesAndNewlines)
+                                    if name == "." || name == "./" { continue }
+                                    if name.hasSuffix("/") { continue }
+
+                                    itemFiles += 1
+                                    itemBytes += max(0, sz)
+
+                                    DispatchQueue.main.async { [weak self] in
+                                        guard let self else { return }
+                                        self.checkingDiscoveredFiles += 1
+                                        self.checkingDiscoveredBytes += max(0, sz)
+                                        self.maybeShowLargePlanHint()
+                                    }
+                                }
+                            }
+
+                            cont.resume(returning: result)
+                        }
+                    }
+
+                    // Eintrag des aktiven Prozesses entfernen. – by Obst-Terminator
+                    await MainActor.run {
+                        self.activeProcesses[item.id] = nil
+                    }
+
+                    let cancelledNow = await MainActor.run { self.cancelRequested }
+                    if cancelledNow {
+                        await MainActor.run {
+                            self.isRunning = false
+                            self.runPhase = .idle
+                            self.lastRunMessage = String(localized: "Plan-Erstellung abgebrochen.")
+                            self.stopCatTimer()
+                            self.activeProcesses.removeAll()
+                        }
+                        return
+                    }
+
+                    // Ergebnis in einem Actor speichern (Swift 6 sicher), dann UI in stabiler Reihenfolge aktualisieren. – by Obst-Terminator
+                    let filesSnapshot = itemFiles
+                    let bytesSnapshot = itemBytes
+                    let row = DryRunRow(id: item.id, source: srcShown, target: dstShown, filesToTransfer: filesSnapshot, bytesToTransfer: bytesSnapshot)
+                    await aggregator.set(id: item.id, row: row, files: filesSnapshot, bytes: bytesSnapshot)
+
+                    let ordered = await aggregator.orderedRows(snapshot: snapshot)
+                    let totals = await aggregator.totals()
+                    let doneCount = await aggregator.doneCount()
+
+                    await MainActor.run {
+                        self.dryRunRows = ordered
+                        self.dryRunTotalFiles = totals.files
+                        self.dryRunTotalBytes = totals.bytes
+                        self.dryRunStatusText = "\(doneCount)/\(snapshot.count): \(String(localized: "Fertig."))"
+                    }
+                }
+            }
+
+            await group.waitForAll()
+        }
+
+        let cancelledFinally = await MainActor.run { self.cancelRequested }
         await MainActor.run {
-            self.dryRunStatusText = "Plan fertig."
+            if !cancelledFinally {
+                self.dryRunStatusText = String(localized: "Plan fertig.")
+            }
             self.stopCatTimer()
+            self.activeProcesses.removeAll()
         }
+
+        return !cancelledFinally
     }
 
     private nonisolated func runRealRunWorker(snapshot: [SyncItem], rsyncPath: String, supportsProgress2: Bool) async {
@@ -1096,22 +1305,23 @@ final class MannoCopyModel: ObservableObject {
                 self.currentPairLabel = "\(idx + 1)/\(snapshot.count): \(srcShown) → \(dstShown)"
                 self.progress = .zero
                 self.progress.totalBytes = self.plannedBytesByID[item.id] ?? 0
-                // Planned file count from the plan (dry-run)
+                // Geplante Dateianzahl aus dem Plan (Dry-Run). – by Obst-Terminator
                 self.progress.totalFiles = self.dryRunRows.first(where: { $0.id == item.id })?.filesToTransfer ?? 0
                 self.progress.transferredFiles = 0
+                self.resetSpeedSmoothing()
 
                 let cmd = "\(rsyncPath) " + args.joined(separator: " ")
                 self.appendDebug("\n=== RUN \(idx + 1)/\(snapshot.count) ===\n")
-                self.appendDebug("Quelle: \(srcShown)\n")
-                self.appendDebug("Ziel:   \(dstShown)\n")
-                self.appendDebug("Befehl: \(cmd)\n\n")
+                self.appendDebug(String(localized: "Quelle: \(srcShown)\n"))
+                self.appendDebug(String(localized: "Ziel:   \(dstShown)\n"))
+                self.appendDebug(String(localized: "Befehl: \(cmd)\n\n"))
             }
 
             let localSupportsProgress2 = supportsProgress2
 
             let result = PosixSpawn.stream(executablePath: rsyncPath, arguments: args, onStart: { [weak self] proc in
                 DispatchQueue.main.async { [weak self] in
-                    self?.activeProcess = proc
+                    self?.activeProcesses[item.id] = proc
                 }
             }) { [weak self] chunk in
                 guard let self else { return }
@@ -1121,7 +1331,7 @@ final class MannoCopyModel: ObservableObject {
                         Task { @MainActor [weak self] in
                             guard let self else { return }
 
-                            // Use planned total from dry-run as baseline if available.
+                            // Geplante Gesamtsumme aus dem Dry-Run als Basis verwenden, falls verfügbar. – by Obst-Terminator
                             let plannedTotal = self.progress.totalBytes
                             if plannedTotal > 0 {
                                 var pp = p
@@ -1130,12 +1340,21 @@ final class MannoCopyModel: ObservableObject {
                                 pp.fraction = frac
                                 pp.percentText = "\(Int((frac * 100.0).rounded()))%"
 
-                                // Best-effort file counters: estimate from bytes and the planned file count.
+                                // Durchsatz glätten, um UI-Flackern zu reduzieren. – by Obst-Terminator
+                                pp.speedBytesPerSec = self.smoothedSpeed(pp.speedBytesPerSec)
+
+                                // Näherungsweise Dateizähler: aus Bytes und geplanter Dateianzahl schätzen. – by Obst-Terminator
                                 let plannedFiles = self.progress.totalFiles
                                 if plannedFiles > 0 {
                                     let est = Int((Double(plannedFiles) * frac).rounded())
                                     pp.totalFiles = plannedFiles
                                     pp.transferredFiles = max(0, min(plannedFiles, est))
+                                }
+
+                                // Wenn möglich, eine ETA aus der Plan-Basis ableiten. – by Obst-Terminator
+                                if pp.speedBytesPerSec > 0 {
+                                    let remaining: Int64 = max(0, plannedTotal - pp.transferredBytes)
+                                    pp.etaSeconds = Int(Double(remaining) / pp.speedBytesPerSec)
                                 }
 
                                 self.progress = pp
@@ -1161,12 +1380,12 @@ final class MannoCopyModel: ObservableObject {
             }
 
             let cancelledNow = await MainActor.run { self.cancelRequested }
-            await MainActor.run { self.activeProcess = nil }
+            await MainActor.run { self.activeProcesses[item.id] = nil }
 
             if cancelledNow {
                 await MainActor.run {
                     self.lastExitCode = result.exitCode
-                    self.lastRunMessage = "Abgebrochen."
+                    self.lastRunMessage = String(localized: "Abgebrochen.")
                     self.runPhase = .idle
                 }
                 return
@@ -1176,12 +1395,12 @@ final class MannoCopyModel: ObservableObject {
                 self.lastExitCode = result.exitCode
 
                 if self.cancelRequested || result.wasCancelled {
-                    self.lastRunMessage = "Abgebrochen."
+                    self.lastRunMessage = String(localized: "Abgebrochen.")
                 } else if result.exitCode == 0 {
-                    self.lastRunMessage = "Fertig: \(srcShown) → \(dstShown)"
+                    self.lastRunMessage = String(localized: "Fertig: \(srcShown) → \(dstShown)")
                 } else {
-                    let hint = result.lastNonProgressLine.isEmpty ? "(keine Detailzeile)" : result.lastNonProgressLine
-                    self.lastRunMessage = "Fehler (Exit-Code \(result.exitCode)): \(hint)"
+                    let hint = result.lastNonProgressLine.isEmpty ? String(localized: "(keine Detailzeile)") : result.lastNonProgressLine
+                    self.lastRunMessage = String(localized: "Fehler (Exit-Code \(result.exitCode)): \(hint)")
                 }
 
                 if !self.progress.hasAnyProgress {
@@ -1190,7 +1409,7 @@ final class MannoCopyModel: ObservableObject {
                 }
 
                 if !result.sawAnyOutput {
-                    self.appendDebug("(rsync lieferte keine Ausgabe)\n")
+                    self.appendDebug(String(localized: "(rsync lieferte keine Ausgabe)\n"))
                 }
 
                 self.appendDebug("\nExit-Code: \(result.exitCode)\n----------------------------------------\n")
@@ -1203,18 +1422,19 @@ final class MannoCopyModel: ObservableObject {
 
 @MainActor
 struct DryRunSummaryView: View {
-    @ObservedObject var model: MannoCopyModel
+    // Änderung: @Bindable statt @ObservedObject
+    @Bindable var model: MannoCopyModel
 
     var body: some View {
         VStack(alignment: .leading, spacing: 10) {
-            Text("Plan")
+            Text(String(localized: "Plan"))
                 .font(.headline)
                 .frame(maxWidth: .infinity, alignment: .leading)
 
             if model.isRunning {
                 HStack(spacing: 10) {
                     ProgressView().scaleEffect(0.9)
-                    Text(model.dryRunStatusText.isEmpty ? "Berechne…" : model.dryRunStatusText)
+                    Text(model.dryRunStatusText.isEmpty ? String(localized: "Berechne…") : model.dryRunStatusText)
                         .foregroundStyle(.secondary)
                 }
             }
@@ -1223,9 +1443,9 @@ struct DryRunSummaryView: View {
                 GroupBox {
                     VStack(alignment: .leading, spacing: 8) {
                         HStack {
-                            Text("Gesamt:").fontWeight(.semibold)
+                            Text(String(localized: "Gesamt:")).fontWeight(.semibold)
                             Spacer()
-                            Text("\(model.dryRunTotalFiles) Datei(en)")
+                            Text("\(model.dryRunTotalFiles) \(String(localized: "Datei(en)"))")
                             Text("•")
                             Text(formatBytes(model.dryRunTotalBytes))
                         }
@@ -1234,7 +1454,7 @@ struct DryRunSummaryView: View {
 
                         ForEach(model.dryRunRows) { row in
                             VStack(alignment: .leading, spacing: 4) {
-                                Text("Quelle → Ziel")
+                                Text(String(localized: "Quelle → Ziel"))
                                     .font(.caption)
                                     .foregroundStyle(.secondary)
 
@@ -1243,7 +1463,7 @@ struct DryRunSummaryView: View {
                                     .textSelection(.enabled)
 
                                 HStack(spacing: 10) {
-                                    Text("\(row.filesToTransfer) Datei(en)")
+                                    Text("\(row.filesToTransfer) \(String(localized: "Datei(en)"))")
                                     Text("•")
                                     Text(formatBytes(row.bytesToTransfer))
                                 }
@@ -1258,7 +1478,7 @@ struct DryRunSummaryView: View {
                     .padding(.vertical, 6)
                 }
             } else if !model.isRunning {
-                Text("Klicke „Prüfen und Synchronisieren“, um zu sehen, wie viele Dateien kopiert würden.")
+                Text(String(localized: "Klicke „Prüfen und Synchronisieren“, um zu sehen, wie viele Dateien kopiert würden."))
                     .foregroundStyle(.secondary)
             }
         }
@@ -1267,11 +1487,12 @@ struct DryRunSummaryView: View {
 
 @MainActor
 struct RealRunProgressView: View {
-    @ObservedObject var model: MannoCopyModel
+    // Änderung: @Bindable statt @ObservedObject
+    @Bindable var model: MannoCopyModel
 
     var body: some View {
         VStack(alignment: .leading, spacing: 10) {
-            Text("Synchronisation")
+            Text(String(localized: "Synchronisation"))
                 .font(.headline)
                 .frame(maxWidth: .infinity, alignment: .leading)
 
@@ -1294,24 +1515,50 @@ struct RealRunProgressView: View {
                     let total = model.progress.totalBytes
 
                     Text(total > 0
-                         ? "\(formatBytes(transferred)) von \(formatBytes(total))"
-                         : "\(formatBytes(transferred)) übertragen")
+                         ? "\(formatBytes(transferred)) \(String(localized: "von")) \(formatBytes(total))"
+                         : "\(formatBytes(transferred)) \(String(localized: "übertragen"))")
 
                     Spacer()
 
-                    Text("Speed: \(formatSpeed(model.progress.speedBytesPerSec))")
-                    Text("•")
-                    Text("ETA: \(formatETA(model.progress.etaSeconds))")
+                    let isComplete = (model.progress.fraction >= 1.0) || (total > 0 && transferred >= total)
+
+                    if isComplete {
+                        Text("✓ ") + Text(String(localized: "Abgeschlossen"))
+                            .fontWeight(.semibold)
+                    } else {
+                        Text(String(localized: "Speed:")) + Text(" \(formatSpeed(model.progress.speedBytesPerSec))")
+                        Text("•")
+
+                        let etaText: String = {
+                            // Wenn bereits übertragen wird, aber noch nicht genug Geschwindigkeitswerte gesammelt wurden, eine freundliche Platzhalteranzeige statt „–“ zeigen. – by Obst-Terminator
+                            if transferred > 0 && model.progress.speedBytesPerSec <= 0 {
+                                return String(localized: "wird ermittelt…")
+                            }
+                            return formatETA(model.progress.etaSeconds)
+                        }()
+
+                        Text(String(localized: "ETA:")) + Text(" \(etaText)")
+                    }
                 }
                 .font(.caption)
                 .foregroundStyle(.secondary)
 
             } else {
-                if !model.lastRunMessage.isEmpty {
+                if model.lastExitCode == 0, !model.lastRunMessage.isEmpty {
+                    VStack(alignment: .leading, spacing: 6) {
+                        Text("✓ ") + Text(String(localized: "Abgeschlossen"))
+                            .fontWeight(.semibold)
+                            .foregroundStyle(.secondary)
+
+                        Text(model.lastRunMessage)
+                            .font(.caption)
+                            .foregroundStyle(.secondary)
+                    }
+                } else if !model.lastRunMessage.isEmpty {
                     Text(model.lastRunMessage)
-                        .foregroundStyle(model.lastExitCode == 0 ? Color.secondary : Color.red)
+                        .foregroundStyle(.red)
                 } else {
-                    Text("Starte die Synchronisation, um den Fortschritt zu sehen.")
+                    Text(String(localized: "Starte die Synchronisation, um den Fortschritt zu sehen."))
                         .foregroundStyle(.secondary)
                 }
             }
@@ -1322,18 +1569,20 @@ struct RealRunProgressView: View {
 @MainActor
 struct ContentView: View {
 
-    @StateObject private var model = MannoCopyModel()
+    // Änderung: @Bindable statt @StateObject
+    @Bindable private var model = MannoCopyModel()
     @State private var selectedID: UUID? = nil
     @State private var isDebugExpanded: Bool = false
+    @StateObject private var sparkle = SparkleManager.shared
 
-    // Minimal UI helpers
+    // Minimale UI-Hilfen – by Obst-Terminator
     private func card<Content: View>(@ViewBuilder _ content: () -> Content) -> some View {
         VStack(alignment: .leading, spacing: 12, content: content)
-            .frame(maxWidth: .infinity, alignment: .leading)
-            .padding(12)
-            .background(.background)
-            .overlay(RoundedRectangle(cornerRadius: 10).stroke(.gray.opacity(0.2), lineWidth: 1))
-            .cornerRadius(10)
+                .frame(maxWidth: .infinity, alignment: .leading)
+                // Hintergrund mit modernem Liquid-Glass-Effekt – by Obst-Terminator
+                .background(.regularMaterial)
+                .overlay(RoundedRectangle(cornerRadius: 10).stroke(.gray.opacity(0.2), lineWidth: 1))
+                .cornerRadius(10)
     }
 
     private func phaseChip(_ title: String, done: Bool, active: Bool) -> some View {
@@ -1345,10 +1594,10 @@ struct ContentView: View {
 
     private var phaseBar: some View {
         HStack(spacing: 12) {
-            phaseChip("Prüfen", done: model.runPhase != .idle, active: model.runPhase == .checking)
-            phaseChip("Bestätigen", done: model.runPhase == .syncing, active: model.runPhase == .awaitingConfirm)
+            phaseChip(String(localized: "Prüfen"), done: model.runPhase != .idle, active: model.runPhase == .checking)
+            phaseChip(String(localized: "Bestätigen"), done: model.runPhase == .syncing, active: model.runPhase == .awaitingConfirm)
             phaseChip(
-                "Sync",
+                String(localized: "Sync"),
                 done: model.runPhase == .idle && model.lastExitCode == 0 && !model.lastRunMessage.isEmpty,
                 active: model.runPhase == .syncing
             )
@@ -1367,7 +1616,7 @@ struct ContentView: View {
 
             HSplitView {
                 VStack(spacing: 10) {
-                    Text("Synchronisations-Paare")
+                    Text(String(localized: "Synchronisations-Paare"))
                         .font(.caption)
                         .foregroundStyle(.secondary)
                         .frame(maxWidth: .infinity, alignment: .leading)
@@ -1411,19 +1660,28 @@ struct ContentView: View {
                     .layoutPriority(1)
 
                     HStack {
-                        Button("Ordner-Paar hinzufügen") { Task { await model.addFolderItem() } }
-                            .controlSize(.small)
-                            .disabled(model.isRunning)
+                        Button(String(localized: "Ordner-Paar hinzufügen")) {
+                            Task { await model.addFolderItem() }
+                        }
+                        .controlSize(.small)
+                        .disabled(model.isRunning)
+                        .accessibilityLabel(String(localized: "Ordner-Paar hinzufügen"))
 
-                        Button("Dateiauswahl hinzufügen") { Task { await model.addSelectedFilesItem() } }
-                            .controlSize(.small)
-                            .disabled(model.isRunning)
+                        Button(String(localized: "Dateiauswahl hinzufügen")) {
+                            Task { await model.addSelectedFilesItem() }
+                        }
+                        .controlSize(.small)
+                        .disabled(model.isRunning)
+                        .accessibilityLabel(String(localized: "Dateiauswahl hinzufügen"))
 
                         Spacer()
 
-                        Button("Alle Einträge löschen") { model.clearAllItems() }
-                            .controlSize(.small)
-                            .disabled(model.isRunning || model.items.isEmpty)
+                        Button(String(localized: "Alle Einträge löschen")) {
+                            model.clearAllItems()
+                        }
+                        .controlSize(.small)
+                        .disabled(model.isRunning || model.items.isEmpty)
+                        .accessibilityLabel(String(localized: "Alle Einträge löschen"))
                     }
                 }
                 .frame(minWidth: 320, idealWidth: 360, maxWidth: 420)
@@ -1435,12 +1693,13 @@ struct ContentView: View {
                         Button {
                             model.startCheckAndSyncFlow()
                         } label: {
-                            Label("Prüfen und Synchronisieren", systemImage: "arrow.triangle.2.circlepath")
+                            Label(String(localized: "Prüfen und Synchronisieren"), systemImage: "arrow.triangle.2.circlepath")
                                 .frame(maxWidth: .infinity)
                         }
                         .buttonStyle(.borderedProminent)
                         .controlSize(.large)
                         .disabled(model.items.isEmpty || model.isRunning)
+                        .accessibilityLabel(String(localized: "Prüfen und Synchronisieren"))
 
                         phaseBar
 
@@ -1448,34 +1707,82 @@ struct ContentView: View {
                             HStack(spacing: 10) {
                                 ProgressView().scaleEffect(0.9)
 
-                        if model.runPhase == .checking {
-                            VStack(alignment: .leading, spacing: 2) {
-                                if !model.checkingCatMessage.isEmpty {
-                                    Text(model.checkingCatMessage)
+                                if model.runPhase == .checking {
+                                    VStack(alignment: .leading, spacing: 2) {
+                                        if !model.checkingCatMessage.isEmpty {
+                                            Text(model.checkingCatMessage)
+                                        }
+                                        Text(String(localized: "Bisher \(model.checkingDiscoveredFiles) Dateien / \(formatBytes(model.checkingDiscoveredBytes))"))
+
+                                        if model.showLargePlanHint {
+                                            VStack(alignment: .leading, spacing: 6) {
+                                                HStack(alignment: .top, spacing: 8) {
+                                                    Image(systemName: "exclamationmark.triangle.fill")
+                                                    Text(model.largePlanHintText)
+                                                        .fixedSize(horizontal: false, vertical: true)
+                                                }
+
+                                                HStack(spacing: 8) {
+                                                    Button(String(localized: "Plan weiter berechnen")) {
+                                                        model.continuePlanning()
+                                                    }
+                                                    .controlSize(.small)
+                                                    .accessibilityLabel(String(localized: "Plan weiter berechnen"))
+
+                                                    Button(String(localized: "Plan überspringen & direkt syncen")) {
+                                                        model.skipPlanAndSyncNow()
+                                                    }
+                                                    .controlSize(.small)
+                                                    .accessibilityLabel(String(localized: "Plan überspringen und direkt synchronisieren"))
+                                                }
+                                            }
+                                            .padding(8)
+                                            .background(Color(nsColor: .textBackgroundColor))
+                                            .overlay(RoundedRectangle(cornerRadius: 8).stroke(Color.orange.opacity(0.6), lineWidth: 1))
+                                            .cornerRadius(8)
+                                        }
+                                    }
+                                } else if model.runPhase == .syncing {
+                                    let remainingBytes: Int64 = max(0, model.progress.totalBytes - model.progress.transferredBytes)
+
+                                    if model.progress.totalFiles > 1 {
+                                        let remainingFiles = max(0, model.progress.totalFiles - model.progress.transferredFiles)
+                                        Text(LocalizedStringKey("Kopiert \(model.progress.transferredFiles) Dateien / \(formatBytes(model.progress.transferredBytes)) → offen \(remainingFiles) / \(formatBytes(remainingBytes))"))
+                                    } else {
+                                        Text(LocalizedStringKey("Übertragen \(formatBytes(model.progress.transferredBytes)) → offen \(formatBytes(remainingBytes))"))
+                                    }
+                                } else {
+                                    Text(String(localized: "Arbeite…"))
                                 }
-                                Text("Bisher \(model.checkingDiscoveredFiles) Dateien / \(formatBytes(model.checkingDiscoveredBytes))")
+
+                                // Beim Beenden kleinen Status-Text vor Spacer und Stopp-Button anzeigen – by Obst-Terminator
+                                if model.cancelRequested {
+                                    Text(String(localized: "Beende rsync…"))
+                                        .foregroundStyle(.secondary)
+                                }
+
+                                Spacer(minLength: 8)
+
+                                // Stopp-Button durch verbesserte Variante ersetzt – by Obst-Terminator
+                                Button {
+                                    model.stopRunning()
+                                } label: {
+                                    if model.cancelRequested {
+                                        Label(String(localized: "Beende…"), systemImage: "hourglass")
+                                    } else {
+                                        Label(String(localized: "Stopp"), systemImage: "stop.circle.fill")
+                                    }
+                                }
+                                .buttonStyle(.bordered)
+                                .tint(.red)
+                                .controlSize(.small)
+                                .disabled(model.cancelRequested)
+                                .accessibilityLabel(model.cancelRequested
+                                                     ? String(localized: "Beende Synchronisation…")
+                                                     : String(localized: "Synchronisation stoppen"))
                             }
-                        } else if model.runPhase == .syncing {
-                            let remainingFiles = max(0, model.progress.totalFiles - model.progress.transferredFiles)
-                            let remainingBytes = max(0, model.progress.totalBytes - model.progress.transferredBytes)
-                            Text("Kopiert \(model.progress.transferredFiles) Dateien / \(formatBytes(model.progress.transferredBytes)) → offen \(remainingFiles) / \(formatBytes(remainingBytes))")
-                        } else {
-                            Text("Arbeite…")
-                        }
-
-                        Spacer(minLength: 8)
-
-                        Button {
-                            model.stopRunning()
-                        } label: {
-                            Label("Stopp", systemImage: "stop.circle.fill")
-                        }
-                        .buttonStyle(.bordered)
-                        .tint(.red)
-                        .controlSize(.small)
-                    }
-                    .font(.caption)
-                    .foregroundStyle(.secondary)
+                            .font(.caption)
+                            .foregroundStyle(.secondary)
                         }
                     }
 
@@ -1498,15 +1805,23 @@ struct ContentView: View {
                     DisclosureGroup(isExpanded: $isDebugExpanded) {
                         VStack(alignment: .leading, spacing: 8) {
                             HStack(spacing: 12) {
-                                Toggle("Auto-Scroll", isOn: $model.autoScrollDebug)
+                                Toggle(String(localized: "Auto-Scroll"), isOn: $model.autoScrollDebug)
                                     .toggleStyle(.switch)
+                                    .accessibilityLabel(String(localized: "Debug Log Auto-Scroll ein/aus"))
 
                                 Spacer()
+                                
+                                Button(String(localized: "Nach Updates suchen…")) {
+                                    sparkle.checkForUpdates()
+                                }
+                                .controlSize(.small)
+                                .accessibilityLabel(String(localized: "Nach Updates suchen"))
 
-                                Button("Kopieren") {
+                                Button(String(localized: "Kopieren")) {
                                     model.copyDebugToClipboard()
                                 }
                                 .controlSize(.small)
+                                .accessibilityLabel(String(localized: "Debug Log in Zwischenablage kopieren"))
                             }
 
                             DebugLogView(text: model.debugLogText, autoScrollToBottom: model.autoScrollDebug)
@@ -1515,7 +1830,7 @@ struct ContentView: View {
                                 .layoutPriority(1)
                         }
                     } label: {
-                        Text("Details (Debug)")
+                        Text(String(localized: "Details (Debug)"))
                             .font(.caption)
                             .foregroundStyle(.secondary)
                     }
@@ -1533,11 +1848,11 @@ struct ContentView: View {
             .frame(minHeight: 520)
 
         }
-        .alert("Synchronisation starten?", isPresented: $model.showSyncConfirm) {
-            Button("Nein", role: .cancel) {
+        .alert(String(localized: "Synchronisation starten?"), isPresented: $model.showSyncConfirm) {
+            Button(String(localized: "Nein"), role: .cancel) {
                 // User cancelled: keep the plan visible so they can adjust folders.
             }
-            Button("Ja") {
+            Button(String(localized: "Ja")) {
                 model.startPreparedSync()
             }
         } message: {
@@ -1546,8 +1861,26 @@ struct ContentView: View {
         .onDisappear {
             model.stopRunning()
         }
+        // Debug-Bereich automatisch erweitern, wenn lastExitCode ungleich Null ist. – by Obst-Terminator
+        .onChange(of: model.lastExitCode) { _, newValue in
+            if let code = newValue, code != 0 {
+                isDebugExpanded = true
+            }
+        }
+        // Debug ebenfalls automatisch erweitern, wenn lastRunMessage „Fehler“ enthält (ohne Beachtung der Groß-/Kleinschreibung, lokalisiert). – by Obst-Terminator
+        .onChange(of: model.lastRunMessage) { _, newValue in
+            if newValue.lowercased().contains(String(localized: "Fehler").lowercased()) {
+                isDebugExpanded = true
+            }
+        }
         .padding(20)
         .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
         .frame(minWidth: 980, minHeight: 860)
     }
 }
+// MARK: - Preview
+
+#Preview {
+    ContentView()
+}
+
