@@ -1,6 +1,19 @@
 <?xml version="1.0" standalone="yes"?>
 <rss xmlns:sparkle="http://www.andymatuschak.org/xml-namespaces/sparkle" version="2.0">
     <channel>
+        <item>
+            <title>1.1.4</title>
+            <pubDate>Fri, 31 Jan 2026 09:00:00 +0100</pubDate>
+            <sparkle:version>114</sparkle:version>
+            <sparkle:shortVersionString>1.1.4</sparkle:shortVersionString>
+            <sparkle:minimumSystemVersion>15.6</sparkle:minimumSystemVersion>
+            <enclosure
+                url="https://github.com/Obst-Terminator/MannoCopy/releases/download/v1.1.4/MannoCopy-1.1.4.zip"
+                length="2017873"
+                type="application/octet-stream"
+                sparkle:edSignature="SbOZAyMMpEyc1DnkRU+FcCRDCzuAJ+ewZwk7n1NZntyI+ExZA5uLh0DmIcmlh8rf5CO2GfBypnjGLZKqDgVrAQ=="/>
+        </item>
+
         <title>MannoCopy</title>
         <item>
             <title>1.1.3</title>
