@@ -644,7 +644,7 @@ final class MannoCopyModel {
     var cancelRequested: Bool = false
 
     // Die aktuell laufenden rsync-Prozesse. Wird für Stopp verwendet. – by Obst-Terminator
-    private var activeProcesses: [UUID: Process] = [:]
+    @ObservationIgnored private var activeProcesses: [UUID: Process] = [:]
 
     // v1.1 Flow-Status – by Obst-Terminator
     var runPhase: RunPhase = .idle
@@ -693,7 +693,7 @@ final class MannoCopyModel {
         "🐈‍⬛ King Kong macht den Seehund."
     ]
     private var catIndex: Int = 0
-    private var catTimer: DispatchSourceTimer?
+    @ObservationIgnored private var catTimer: DispatchSourceTimer?
     var dryRunRows: [DryRunRow] = []
     var dryRunTotalFiles: Int = 0
     var dryRunTotalBytes: Int64 = 0
@@ -703,14 +703,14 @@ final class MannoCopyModel {
     var showLargePlanHint: Bool = false
     var largePlanHintText: String = ""
 
-    private var skipPlanRequested: Bool = false
+    @ObservationIgnored private var skipPlanRequested: Bool = false
 
     // Heuristische Schwellenwerte (für HDD/SMB optimiert) – by Obst-Terminator
     private let largePlanFilesThreshold: Int = 150_000
     private let largePlanBytesThreshold: Int64 = 500 * 1024 * 1024 * 1024 // 500 GB
 
     // Durchsatz-Glättung (vermeidet unruhige UI-Anzeige) – by Obst-Terminator
-    private var recentSpeeds: [Double] = []
+    @ObservationIgnored private var recentSpeeds: [Double] = []
     private let speedSmoothingWindow: Int = 5
 
     private func resetSpeedSmoothing() {
@@ -736,16 +736,21 @@ final class MannoCopyModel {
     var lastRunMessage: String = ""
     var lastExitCode: Int32? = nil
 
+    // Hinweis: Vollzugriff auf Festplatte (macOS Datenschutz) – by Obst-Terminator
+    var showFullDiskAccessHint: Bool = false
+    var fullDiskAccessHintText: String = ""
+    @ObservationIgnored private var didShowFullDiskAccessHint: Bool = false
+
     // Debug-Ansicht Optionen – by Obst-Terminator
     var autoScrollDebug: Bool = true
 
     // Log begrenzen, damit die UI auch bei großen Läufen schnell bleibt. – by Obst-Terminator
-    private let debugMaxChars: Int = 2_000_000
+    private static let debugMaxChars: Int = 2_000_000
 
     func appendDebug(_ s: String) {
         debugLogText.append(s)
-        if debugLogText.count > debugMaxChars {
-            debugLogText = String(debugLogText.suffix(debugMaxChars))
+        if debugLogText.count > Self.debugMaxChars {
+            debugLogText = String(debugLogText.suffix(Self.debugMaxChars))
         }
     }
 
@@ -753,6 +758,54 @@ final class MannoCopyModel {
         let pb = NSPasteboard.general
         pb.clearContents()
         pb.setString(debugLogText, forType: .string)
+    }
+
+    // MARK: - Datenschutz / Vollzugriff – by Obst-Terminator
+
+    @MainActor
+    func openFullDiskAccessSettings() {
+        // Apple erlaubt kein direktes „Anfordern“ – nur das Öffnen der passenden Systemeinstellungen.
+        if let url = URL(string: "x-apple.systempreferences:com.apple.preference.security?Privacy_AllFiles") {
+            NSWorkspace.shared.open(url)
+        }
+    }
+
+    private func itemLikelyPhotosLibrary(_ item: SyncItem) -> Bool {
+        let p = item.sourceBasePath.lowercased()
+        return p.contains(".photoslibrary")
+    }
+
+    private func outputIndicatesPrivacyBlock(_ line: String) -> Bool {
+        let l = line.lowercased()
+        // Typische rsync/macos-Meldungen bei fehlenden Berechtigungen (TCC) – by Obst-Terminator
+        return l.contains("operation not permitted")
+            || l.contains("permission denied")
+            || l.contains("not permitted")
+            || l.contains("failed to open")
+            || l.contains("error: perms")
+    }
+
+    @MainActor
+    private func maybeShowFullDiskAccessHint(exitCode: Int32, lastLine: String, item: SyncItem) {
+        guard !didShowFullDiskAccessHint else { return }
+        // Exit 23 ist häufig „partial transfer“; in Kombination mit TCC/Permissions sehr typisch. – by Obst-Terminator
+        let looksBlocked = outputIndicatesPrivacyBlock(lastLine)
+        let isPhotos = itemLikelyPhotosLibrary(item)
+
+        guard exitCode == 23 || looksBlocked else { return }
+        guard looksBlocked || isPhotos else { return }
+
+        didShowFullDiskAccessHint = true
+
+        // Copy: Variante 1 (freundlich + erklärend + handlungsorientiert) – by Obst-Terminator
+        var msg = "macOS schützt bestimmte Ordner besonders stark (z. B. Fotos-Mediathek, Mail, Safari-Daten).\n\nFür vollständige Backups benötigt MannoCopy den Vollzugriff auf die Festplatte.\n\nOhne diese Berechtigung können einzelne Dateien übersprungen werden."
+
+        if isPhotos {
+            msg += "\n\nHinweis: Die Apple Fotos-Mediathek ist besonders geschützt. Ohne Vollzugriff können Teile davon nicht gesichert werden."
+        }
+
+        fullDiskAccessHintText = msg
+        showFullDiskAccessHint = true
     }
 
     /// Stoppt die aktuell laufenden rsync-Prozesse (falls vorhanden). Verwendet zuerst SIGTERM, dann SIGKILL als Fallback. – by Obst-Terminator
@@ -847,12 +900,12 @@ final class MannoCopyModel {
     private let storageKey = "MannoCopy.Items.vClean"
 
     // Vorbereiteter Plan aus dem letzten Dry-Run (als Fortschritts-Baseline für den folgenden echten Lauf) – by Obst-Terminator
-    private var plannedBytesByID: [UUID: Int64] = [:]
-    private var preparedSnapshot: [SyncItem] = []
+    @ObservationIgnored private var plannedBytesByID: [UUID: Int64] = [:]
+    @ObservationIgnored private var preparedSnapshot: [SyncItem] = []
 
-    private var rsyncPath: String = "/usr/bin/rsync"
-    private var supportsProgress2: Bool = false
-    private var supportsChecked: Bool = false
+    @ObservationIgnored private var rsyncPath: String = "/usr/bin/rsync"
+    @ObservationIgnored private var supportsProgress2: Bool = false
+    @ObservationIgnored private var supportsChecked: Bool = false
 
     init() {
         loadItems()
@@ -1093,6 +1146,9 @@ final class MannoCopyModel {
         skipPlanRequested = false
         stopCatTimer()
         resetSpeedSmoothing()
+        showFullDiskAccessHint = false
+        fullDiskAccessHintText = ""
+        didShowFullDiskAccessHint = false
     }
 
     private func resetRealOutputsOnly() {
@@ -1124,12 +1180,28 @@ final class MannoCopyModel {
 
         actor AsyncSemaphore {
             private var value: Int
+            private var waiters: [CheckedContinuation<Void, Never>] = []
+
             init(_ value: Int) { self.value = value }
+
             func wait() async {
-                while value == 0 { await Task.yield() }
-                value -= 1
+                if value > 0 {
+                    value -= 1
+                    return
+                }
+                await withCheckedContinuation { (cont: CheckedContinuation<Void, Never>) in
+                    waiters.append(cont)
+                }
             }
-            func signal() { value += 1 }
+
+            func signal() {
+                if waiters.isEmpty {
+                    value += 1
+                } else {
+                    let cont = waiters.removeFirst()
+                    cont.resume()
+                }
+            }
         }
 
         let sem = AsyncSemaphore(maxConcurrent)
@@ -1185,7 +1257,7 @@ final class MannoCopyModel {
                     var pending = ""
 
                     // Den blockierenden Stream auf einem GCD-Thread ausführen, um Swift-Concurrency-Threads nicht zu blockieren. – by Obst-Terminator
-                    let _ = await withCheckedContinuation { (cont: CheckedContinuation<RsyncRunResult, Never>) in
+                    let result = await withCheckedContinuation { (cont: CheckedContinuation<RsyncRunResult, Never>) in
                         DispatchQueue.global(qos: .userInitiated).async { [weak self] in
                             guard let self else {
                                 cont.resume(returning: RsyncRunResult(exitCode: 127, sawAnyOutput: false, lastNonProgressLine: "", wasCancelled: false))
@@ -1259,6 +1331,19 @@ final class MannoCopyModel {
                             self.activeProcesses.removeAll()
                         }
                         return
+                    }
+
+                    // Datenschutz-Hinweis bereits im Dry-Run nur dann auslösen, wenn es wirklich nach macOS-Berechtigungen (TCC) aussieht. – by Obst-Terminator
+                    if result.exitCode != 0 {
+                        let hint = result.lastNonProgressLine.isEmpty ? String(localized: "(keine Detailzeile)") : result.lastNonProgressLine
+
+                        // outputIndicatesPrivacyBlock ist UI-nah (MainActor); daher hier sauber auf MainActor ausführen. – by Obst-Terminator
+                        let looksBlocked = await MainActor.run { self.outputIndicatesPrivacyBlock(hint) }
+                        if looksBlocked || result.exitCode == 23 {
+                            await MainActor.run {
+                                self.maybeShowFullDiskAccessHint(exitCode: result.exitCode, lastLine: hint, item: item)
+                            }
+                        }
                     }
 
                     // Ergebnis in einem Actor speichern (Swift 6 sicher), dann UI in stabiler Reihenfolge aktualisieren. – by Obst-Terminator
@@ -1401,6 +1486,7 @@ final class MannoCopyModel {
                 } else {
                     let hint = result.lastNonProgressLine.isEmpty ? String(localized: "(keine Detailzeile)") : result.lastNonProgressLine
                     self.lastRunMessage = String(localized: "Fehler (Exit-Code \(result.exitCode)): \(hint)")
+                    self.maybeShowFullDiskAccessHint(exitCode: result.exitCode, lastLine: hint, item: item)
                 }
 
                 if !self.progress.hasAnyProgress {
@@ -1857,6 +1943,16 @@ struct ContentView: View {
             }
         } message: {
             Text(model.preparedPlanMessage)
+        }
+        .alert(String(localized: "Vollzugriff auf Festplatte erforderlich"), isPresented: $model.showFullDiskAccessHint) {
+            Button(String(localized: "Zu den Systemeinstellungen")) {
+                model.openFullDiskAccessSettings()
+            }
+            Button(String(localized: "Abbrechen"), role: .cancel) {
+                // Nur schließen
+            }
+        } message: {
+            Text(model.fullDiskAccessHintText)
         }
         .onDisappear {
             model.stopRunning()
