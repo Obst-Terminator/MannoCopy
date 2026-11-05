@@ -2,6 +2,8 @@
 
 ## 1.1.5 — 2026-11-05
 
+Release: **Build 7**, Universal-App für Intel und Apple Silicon, macOS 15.6 oder neuer. Das Update-Archiv ist mit dem bestehenden Sparkle-EdDSA-Schlüssel signiert. Wie 1.1.4 wird die App mit Apple Development signiert; sie ist nicht Developer-ID-signiert oder notarisiert.
+
 ### Deutsch
 
 #### Prüfung und Synchronisation
