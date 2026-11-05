@@ -1,6 +1,15 @@
-<?xml version="1.0" standalone="yes"?>
+<?xml version='1.0' encoding='utf-8'?>
 <rss xmlns:sparkle="http://www.andymatuschak.org/xml-namespaces/sparkle" version="2.0">
     <channel>
+        <item>
+            <title>MannoCopy 1.1.5</title>
+            <pubDate>Thu, 05 Nov 2026 18:04:22 +0000</pubDate>
+            <sparkle:version>7</sparkle:version>
+            <sparkle:shortVersionString>1.1.5</sparkle:shortVersionString>
+            <sparkle:minimumSystemVersion>15.6</sparkle:minimumSystemVersion>
+            <description>&lt;h2&gt;MannoCopy 1.1.5&lt;/h2&gt;&lt;ul&gt;&lt;li&gt;Unveränderte Pläne enden sofort: Alles aktuell, keine Synchronisation nötig.&lt;/li&gt;&lt;li&gt;Nur geänderte Ordnerpaare werden synchronisiert; Ordner, Links und Metadaten werden berücksichtigt.&lt;/li&gt;&lt;li&gt;Verbesserte ETA und Fortschrittsanzeige, vergangene Arbeitszeit und Katzensprüche.&lt;/li&gt;&lt;li&gt;Weniger Aufwand bei der Planung, Mediatheken-Erkennung ohne zusätzlichen Scan und verbesserter Abbruch.&lt;/li&gt;&lt;/ul&gt;&lt;p&gt;&lt;a href="https://github.com/Obst-Terminator/MannoCopy/releases/tag/v1.1.5"&gt;Vollständige Änderungen / Full release notes&lt;/a&gt;&lt;/p&gt;</description>
+            <enclosure url="https://github.com/Obst-Terminator/MannoCopy/releases/download/v1.1.5/MannoCopy-1.1.5.zip" length="2090880" type="application/octet-stream" sparkle:edSignature="0ThqUYvEMyIg5MjF+R1+A+nSSCZY1xiEo+7FXomf0bqfObyp6YuTEgYfO1yA9hbn36gc18rCLKdaav9vMyVWBg==" />
+        </item>
         <title>MannoCopy</title>
         <item>
             <title>1.1.3</title>
@@ -8,7 +17,7 @@
             <sparkle:version>5</sparkle:version>
             <sparkle:shortVersionString>1.1.3</sparkle:shortVersionString>
             <sparkle:minimumSystemVersion>15.6</sparkle:minimumSystemVersion>
-            <enclosure url="https://obst-terminator.github.io/MannoCopy/updates/MannoCopy-1.1.3.zip" length="2018700" type="application/octet-stream" sparkle:edSignature="z+EoWs694X15TWfVeTUsoW90uKENPLfOCskuFEPD1axiWjZB0LN10Ag779vOCK/XH8VagXQN3xLT6Ky4eaIQDg=="/>
+            <enclosure url="https://obst-terminator.github.io/MannoCopy/updates/MannoCopy-1.1.3.zip" length="2018700" type="application/octet-stream" sparkle:edSignature="z+EoWs694X15TWfVeTUsoW90uKENPLfOCskuFEPD1axiWjZB0LN10Ag779vOCK/XH8VagXQN3xLT6Ky4eaIQDg==" />
         </item>
     </channel>
 </rss>
