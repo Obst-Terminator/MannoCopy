@@ -6,14 +6,18 @@ Eine kleine macOS-App, die `rsync`-Synchronisationen mit einem klaren Ablauf sic
 > 🇬🇧 English documentation: **[README.md](README.md)**  
 > Die App-Oberfläche ist aktuell **Deutsch**.
 
+Änderungen: **[Changelog](CHANGELOG.md)**
+
 ---
 
 ## Funktionen
 
 - Mehrere Synchronisations-Paare verwalten (Ordner-Paar oder Dateiauswahl)
 - Erst **Plan erstellen** (Dry-Run)
+- Unveränderte Pläne sofort abschließen; nur geänderte Paare synchronisieren
 - Bestätigungsdialog vor dem echten Sync
 - Live-Fortschritt mit geglätteter Geschwindigkeits- und ETA-Anzeige
+- Vergangene Arbeitszeit und wechselnde Katzensprüche von Louis / King Kong
 - Klare Ablaufphasen (Planen / Bestätigen / Synchronisieren)
 - **Sicherer Stopp**-Button (beendet laufende `rsync`-Prozesse sauber)
 - Integrierte Update-Funktion (Sparkle)
@@ -30,7 +34,7 @@ Eine kleine macOS-App, die `rsync`-Synchronisationen mit einem klaren Ablauf sic
 ## Systemvoraussetzungen
 
 - macOS **Sequoia (15.6)** oder neuer
-- Xcode **16** oder neuer (zum Bauen aus dem Quellcode)
+- Xcode **26** oder neuer mit Swift **6.2** oder neuer (zum Bauen und für `swift test`)
 - `rsync` auf dem System verfügbar
 ---
 
@@ -39,6 +43,8 @@ Eine kleine macOS-App, die `rsync`-Synchronisationen mit einem klaren Ablauf sic
 1. **„Prüfen und Synchronisieren“** → erstellt einen Plan (Dry-Run)
 2. Datei-/Datenmenge prüfen
 3. Bestätigen → Synchronisation starten
+
+Ohne Änderungen endet der Lauf mit **„Alles aktuell, keine Synchronisation nötig.“** ohne zweiten Scan. Auch Änderungen an Ordnern, Links und Metadaten zählen als Änderungen.
 
 ---
 

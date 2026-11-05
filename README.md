@@ -8,14 +8,18 @@ A small macOS app that helps you run safe `rsync` synchronizations with a clear 
 > 🇩🇪 German documentation: **[README.de.md](README.de.md)**  
 > The app UI is currently **German**.
 
+Changes: **[Changelog](CHANGELOG.md)**
+
 ---
 
 ## Features
 
 - Manage multiple sync pairs (folder-to-folder or selected files)
 - Always creates a **plan** first (dry-run)
+- Unchanged plans finish immediately; only changed pairs are synchronized
 - Confirmation dialog before the real sync starts
 - Live progress with smoothed speed and ETA estimation
+- Elapsed work time and rotating Louis / King Kong cat messages
 - Clear run phases (planning / waiting for confirmation / syncing)
 - **Safe Stop** button (cleanly terminates running `rsync` processes)
 - Built-in update mechanism (Sparkle)
@@ -32,7 +36,7 @@ A small macOS app that helps you run safe `rsync` synchronizations with a clear 
 ## System Requirements
 
 - macOS **Sequoia (15.6)** or later
-- Xcode **16** or later (for building from source)
+- Xcode **26** or later with Swift **6.2** or later (for building from source and running `swift test`)
 - `rsync` available on the system
 ---
 
@@ -41,6 +45,8 @@ A small macOS app that helps you run safe `rsync` synchronizations with a clear 
 1. Press **“Prüfen und Synchronisieren”** to generate a plan (dry-run)
 2. Review the calculated file count / bytes
 3. Confirm to start the real synchronization
+
+If no changes are found, the run finishes with **“Alles aktuell, keine Synchronisation nötig.”** without a second scan. Directory, link and metadata changes also count as changes.
 
 ---
 
